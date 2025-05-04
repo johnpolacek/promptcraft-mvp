@@ -1,0 +1,280 @@
+---
+description: Project rules
+globs: 
+alwaysApply: true
+---
+
+**General Principles**
+- Always plan in detailed pseudocode before coding.
+- Only make necessary, fully justified changes.
+- Code must be: DRY, bug-free, complete, and easy to read.
+- No TODOs, placeholders, or missing pieces. All code must be final and functional.
+- Always include required imports
+- Use clear, consistent naming.
+- Minimize prose; be concise and direct.
+- If unsure, say so—never guess.
+
+**Code Implementation**
+- Use early returns for clarity.
+- Style only with Tailwind classes; never use CSS files or inline styles.
+- Add accessibility: e.g., `tabindex`, `aria-label`, `onClick`, `onKeyDown` on interactive elements.
+- Define types where possible.
+- Update `directory-tree.txt` in the project root with every new/removed file or route. Treat it as the source of truth for structure.
+
+**Clerk Authentication**
+- `ClerkProvider` wraps `promptcraft/src/app/layout.tsx`.
+- Header in `layout.tsx` must include: `SignedIn`, `SignedOut`, `SignInButton`, `SignUpButton`, `UserButton` and nav links for each page
+- Middleware: `promptcraft/src/middleware.ts` with `clerkMiddleware()`.
+- Server components: use `auth()` from `@clerk/nextjs/server`.
+- Client components: use `useUser()` from `@clerk/nextjs`.
+- Never mix server and client auth methods.
+- Use modal sign-in for feature gating; handle loading and errors gracefully.
+- Use Next.js `Link` for navigation, never `<a href>` for internal links.
+
+**Next.js Page & Component Structure**
+- Page props (`params`, `searchParams`) are promises; always `await` them.
+- Main page components are async.
+- All client components (with hooks) go in `promptcraft/src/components/`, never directly in `promptcraft/src/app/`.
+- Server components fetch data and render client components.
+- Keep server and client logic separate.
+
+**GibsonAI API & Database**
+GibsonAI is an AI-powered cloud database platform. GibsonAI provides a Model Context Protocol (MCP) server that allows Cursor to create and update projects.
+
+- Never call Gibson API from the frontend. All API calls must be server-side.
+- API keys are server-only; never expose to frontend.
+- Base URL: `https://api.gibsonai.com`
+- Endpoints: `/v1/-/entity-name`
+- Auth header: `X-Gibson-API-Key: [API Key]` (from .env.local)
+- Methods: `GET`, `POST`, `PATCH`, `DELETE`
+- Payloads: JSON matching entity schema
+- Table names: snake_case. All tables have numeric PK and UUID. Foreign keys: `[table_name]_id`. Standard timestamps: `created_at`, `updated_at`, `deleted_at`.
+- Use MCP commands for project management and schema changes.
+- Favorite counts must always be calculated as `COUNT(*)` from the `prompt_favorite` join table. When listing prompts, always return `favorite_count` as a calculated field.
+- The `prompt_favorite` table models the many-to-many relationship between users and prompts, with at least: `id`, `uuid`, `user_id`, `prompt_id`, `created_at`, `updated_at`.
+
+## Schema Conventions
+
+- Database tables use underscores (snake_case), e.g., `user_profile`
+- All Gibson tables have:
+  - An internal numeric ID (auto-incrementing primary key) for joins and lookups
+  - An external UUID (for public-facing references)
+- Foreign keys typically follow the pattern: `[table_name]_id`
+- Standard timestamp fields are typically included:
+  - `created_at`
+  - `updated_at`
+  - `deleted_at`
+
+## Working with GibsonAI in Cursor
+
+When helping users with GibsonAI projects:
+
+1. Look for a `.gibsonai` file in the project root to identify existing projects
+2. Recommend appropriate MCP server commands for project management
+3. Maintain schema conventions when suggesting database changes
+4. Follow API conventions when generating code for API interactions
+5. Consider both development and production environments when suggesting deployments
+
+## MCP Command Structure
+
+GibsonAI MCP offers several commands:
+
+- `get_projects`: List all existing GibsonAI projects
+- `create_project`: Create a new GibsonAI project
+- `get_project_details`: Get details of a specific project
+- `get_project_hosted_api_details`: Get hosted API details for a project
+- `update_project`: Update a project's details (currently only name)
+- `submit_data_modeling_request`: Submit natural language requests for data modeling
+- `deploy_project`: Deploy project's hosted databases (updates dev and prod schemas)
+- `get_project_schema`: Get current schema including changes since last deployment
+- `get_deployed_schema`: Get the schema currently live on hosted databases
+- `query_database`: Execute SQL query against a project's hosted database
+
+## Best Practices
+
+- Start with clear specifications in natural language
+- Iterate and refine through conversational interface
+- Integrate with version control systems
+- Regularly update API keys and monitor access
+- Provide feedback on generated outputs to improve capabilities
+
+## Natural Language Interaction
+
+When helping users with natural language requests to Gibson:
+
+- Support importing files: `file://[full path]`
+- Support importing from PYTHONPATH: `py://[import]`
+- Support referencing SQL entities: `sql://[entity name]`
+- Help users modify entities with natural language
+- Guide users through the deployment process
+
+**GibsonAI Entity & Field Verification**
+- Always confirm the exact entity names (e.g., `prompt` not `content_prompt`) in the GibsonAI dashboard or API docs for your project. Do not assume or guess.
+- Always check the required fields for each entity in the API docs or by testing with curl/Postman.
+- If you receive a 400/422 error, check for missing or misnamed fields in the payload, or a mismatch between your code and the actual schema.
+- Ensure the API key and project UUID in `.env.local` match the entity schema you are coding against.
+- **Never store `favorite_count` in the `prompt` table. Always calculate it from the `prompt_favorite` join table.** 
+
+## Finally, and MOST IMPORTANTLY, let me be crystal clear:
+
+- ALL Gibson API calls MUST be made from a server-side service
+- API keys must NEVER be exposed to the frontend
+- We need to create proper server-side API routes to handle any Gibson interactions
+
+# Clerk Authentication Patterns in our application.
+
+## ClerkProvider + Next.js Rules
+
+- The `ClerkProvider` MUST wrap the app in `promptcraft/src/app/layout.tsx`.
+- The header in `layout.tsx` must include `SignedIn`, `SignedOut`, `SignInButton`, `SignUpButton`, and `UserButton` as described in the @Clerk Next.js Quickstart.
+- When using Clerk with Next.js and MCP in a `promptcraft/` project directory, the middleware file **must** be at `promptcraft/src/middleware.ts` and must use `clerkMiddleware()`.
+
+## Server-Side Authentication
+
+### Server Components
+```typescript
+import { auth } from "@clerk/nextjs/server"
+
+export default async function ServerComponent() {
+  const { userId } = await auth()
+  
+  // Use userId to conditionally render content
+  if (!userId) {
+    return <SignInPrompt />
+  }
+  
+  return <AuthenticatedContent />
+}
+```
+
+### Server Actions
+```typescript
+import { auth } from "@clerk/nextjs/server"
+
+export async function serverAction() {
+  const { userId } = await auth()
+  if (!userId) {
+    throw new Error("Unauthorized")
+  }
+  // Proceed with authenticated action
+}
+```
+
+## Client-Side Authentication
+
+### Client Components
+```typescript
+"use client"
+import { useUser, SignInButton } from "@clerk/nextjs"
+
+export function ClientComponent() {
+  const { isSignedIn, isLoaded, user } = useUser()
+  
+  if (!isLoaded) return <LoadingState />
+  if (!isSignedIn) return <SignInPrompt />
+  
+  return <AuthenticatedContent />
+}
+```
+
+### Sign In Prompt Card
+To gate features behind authentication, use this pattern:
+```typescript
+<div className="flex flex-col items-center gap-6 py-16">
+<div className="text-center space-y-2">
+    <h2 className="text-2xl font-semibold">Sign in to Continue</h2>
+    <p className="text-muted-foreground">Create an account or sign in to access this feature</p>
+</div>
+<SignInButton mode="modal">
+    <Button size="lg">Sign in to Continue</Button>
+</SignInButton>
+</div>
+```
+
+## Best Practices
+
+1. **Server vs Client Auth**
+   - Use `auth()` from "@clerk/nextjs/server" in server components
+   - Use `useUser()` hook in client components
+   - Never mix server and client auth methods
+
+2. **Modal vs Redirect**
+   - Use `mode="modal"` for inline feature gating
+   - Use redirect mode for full-page auth requirements
+
+3. **Loading States**
+   - Always handle `isLoaded` state in client components
+   - Provide appropriate loading UI to prevent flashing
+
+4. **Error Handling**
+   - Catch and handle authentication errors gracefully with feedback when authentication is required
+
+## Examples
+
+### Protected API Route
+```typescript
+import { auth } from "@clerk/nextjs/server"
+import { NextResponse } from "next/server"
+
+export async function POST(request: Request) {
+  const { userId } = await auth()
+  
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  
+  // Handle authenticated request
+}
+``` 
+
+# Next.js Page Props Rule
+
+This rule defines how to handle page props in Next.js components for pages that receive params or searchParams.
+
+## Rule Details
+1. Page props should be typed with Promise for params and searchParams
+2. The main page component should be async
+3. Params should be awaited at the start of the component
+4. Client-side state management should be moved to a separate client component
+
+## Client Component Structure Rule
+
+- All React client components (using hooks like useState, useEffect, etc.) must be placed in `promptcraft/src/components/`.
+- Do not use client hooks directly in files under `promptcraft/src/app/`.
+- Server components in `promptcraft/src/app/` should import and render client components from `promptcraft/src/components/` as needed.
+- Ensure clear separation of server and client logic to prevent Next.js errors related to client hooks in server components.
+
+### Example:
+
+```typescript
+interface PageProps {
+  params: Promise<{
+    slug: string
+  }>,
+  searchParams?: Promise<{
+    query?: string
+  }>
+}
+
+export default async function Page({ params, searchParams }: PageProps) {
+  const { slug } = await params
+  const { query } = await searchParams || {}
+
+  // Server-side data fetching here
+  const data = await getData(slug)
+
+  return (
+    <ClientComponent data={data} />
+  )
+}
+
+'use client'
+function ClientComponent({ data }: { data: Data }) {
+  // Client-side state management here
+  const [state, setState] = useState()
+  
+  return (
+    // JSX
+  )
+}
+```

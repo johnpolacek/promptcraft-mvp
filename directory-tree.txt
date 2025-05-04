@@ -1,0 +1,26 @@
+promptcraft/
+├── .env.local
+├── .cursor/
+├── directory-tree.txt
+├── project-plan.txt
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── browse/
+│   │   │   └── page.tsx
+│   │   ├── share/
+│   │   │   └── page.tsx
+│   │   ├── favorites/
+│   │   │   └── page.tsx
+│   │   ├── api/
+│   │   │   ├── prompts/
+│   │   │   │   └── route.ts
+│   │   │   ├── favorites/
+│   │   │   │   └── route.ts
+│   │   ├── globals.css
+│   │   └── favicon.ico
+│   ├── components/
+│   │   ├── PromptList.tsx
+│   │   └── SharePromptForm.tsx
+│   └── middleware.ts 
